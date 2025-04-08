@@ -1,0 +1,33 @@
+// ----------------
+// ssh-testvuln 1.0
+// Exploit vuln on: testing the vulnerability found using scanlib, 
+// Author: Accalina
+// ----------------
+
+
+// --- no need to change this code block ---
+// Check for User Params and initiate variable
+if params.len != 2 or params[0] == "-h" or params[0] == "--help" then exit("<b>Usage: "+program_path.split("/")[-1]+" [ip_address] [port]</b>")
+address = params[0]
+port = params[1].to_int
+
+// --- init the metaxploit lib and connect to service via net use lib 
+exploit_init = function(address, port=22)
+    // check for loaded metasploit script
+    metaxploit = include_lib("/lib/metaxploit.so")
+    if not metaxploit then
+        metaxploit = include_lib(current_path + "/metaxploit.so")
+    end if
+    if not metaxploit then exit("Error: Can't find metaxploit library in the /lib path or the current folder")
+
+    // establish connection
+    net_session = metaxploit.net_use( address, port )
+    if not net_session then exit("Error: can't connect to net session")
+    return net_session.dump_lib
+end function
+// -----------------------------------------
+
+// test the vuln
+metaLib = exploit_init(address, port)
+result = metaLib.overflow("0x1B6E9652", "portbackgrountimpl")  // your can get this address via scanlib
+print(typeof(result))
