@@ -1,0 +1,34 @@
+// ftp-changepass 1.0
+// Exploit vuln on: ftp bufferoverflow to drop shell as root
+// Author: Accalina
+
+
+// --- no need to change this code block ---
+// Check for User Params and initiate variable
+if params.len != 2 or params[0] == "-h" or params[0] == "--help" then exit("<b>Usage: "+program_path.split("/")[-1]+" [ip_address] [port]</b>")
+address = params[0]
+port = params[1].to_int
+shell = get_shell
+
+// --- init the metaxploit lib and connect to service via net use lib 
+exploit_init = function(address, port=22)
+    // check for loaded metasploit script
+    metaxploit = include_lib("/lib/metaxploit.so")
+    if not metaxploit then
+        metaxploit = include_lib(current_path + "/metaxploit.so")
+    end if
+    if not metaxploit then exit("Error: Can't find metaxploit library in the /lib path or the current folder")
+
+    // establish connection
+    net_session = metaxploit.net_use( address, port )
+    if not net_session then exit("Error: can't connect to net session")
+    return net_session.dump_lib
+end function
+// -----------------------------------------
+
+// exploit memory for vuln
+metaLib = exploit_init(address, port)
+
+// test the vuln
+result = metaLib.overflow("0x422A193", "epeatlinescomprev_le")
+print(typeof(result))
