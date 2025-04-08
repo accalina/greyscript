@@ -1,5 +1,5 @@
 // ssh-changepass 1.0
-// Exploit vuln on: ssh bufferoverflow to change registered user password to 'alina'
+// Exploit vuln on: ssh bufferoverflow to drop shell as user
 // Author: Accalina
 
 
