@@ -1,0 +1,3 @@
+
+shell = get_shell
+shell.launch("/bin/mv", "system.bak.log", "system.log")
