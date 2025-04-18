@@ -1,0 +1,19 @@
+// --- init the metaxploit lib and connect to service via net use lib 
+local_exploit_init = function()
+    // check for loaded metasploit script
+    metaxploit = include_lib("/lib/metaxploit.so")
+    if not metaxploit then
+        metaxploit = include_lib(current_path + "/metaxploit.so")
+    end if
+    if not metaxploit then exit("Error: Can't find metaxploit library in the /lib path or the current folder")
+
+    metaLib = metaxploit.load("/lib/kernel_module.so")
+    if not metaLib then exit("Can't find " + "/lib/kernel_module.so")
+    return metaLib
+end function
+// -----------------------------------------
+
+// test the vuln
+metaLib = local_exploit_init()
+result = metaLib.overflow("0x6B859AC3", "raycodecflush_")  // your can get this address via scanlib
+result.start_terminal // start terminal session as root
