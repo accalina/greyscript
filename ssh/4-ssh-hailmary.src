@@ -1,0 +1,140 @@
+// ----------------
+// ssh-testvuln 4.0 - Hail Mary
+// Exploit vuln on: testing the vulnerability found using scanlib, 
+// Author: Accalina
+// ----------------
+
+
+// --- no need to change this code block ---
+// Check for User Params and initiate variable
+if params.len != 2 or params[0] == "-h" or params[0] == "--help" then exit("<b>Usage: "+program_path.split("/")[-1]+" [ip_address] [port]</b>")
+address = params[0]
+port = params[1].to_int
+target_user_name = ""
+override_password = "alina"
+home_path = "~/"
+
+// --- init the metaxploit lib and connect to service via net use lib 
+exploit_init = function(address, port=22)
+    // check for loaded metasploit script
+    metaxploit = include_lib("/lib/metaxploit.so")
+    if not metaxploit then
+        metaxploit = include_lib(current_path + "/metaxploit.so")
+    end if
+    if not metaxploit then exit("Error: Can't find metaxploit library in the /lib path or the current folder")
+
+    // establish connection
+    net_session = metaxploit.net_use( address, port )
+    if not net_session then exit("Error: can't connect to net session")
+    return net_session.dump_lib
+end function
+// -----------------------------------------
+
+
+// exploit module
+change_pass_via_exploit = function(metaLib, memory, check) 
+    result = metaLib.overflow(memory, check, override_password)
+    print("changing user password to: '" + override_password + "'")
+    if not result then exit("Program ended")
+    return 1
+end function
+
+
+// payload module
+change_pass_via_computer = function(computer_instance)
+    target_user_name = user_input("Enter target username: ")
+    changeResult = computer_instance.change_password(target_user_name, override_password)
+    if typeof(changeResult) != "string" then exit("There was an error when changing the password: " + changeResult)
+    return 1
+end function
+
+read_passwd_as_user = function(computer_instance)
+    passwdContent = computer_instance.File("/etc/passwd").get_content
+    if typeof(passwdContent) != "string" then exit("There was an error while reading the file: " + passwdContent)
+    print("User password list content:\n" + passwdContent)
+    print(typeof(passwdContent))
+    return passwdContent
+end function
+
+run_ssh = function(address, port, user)
+    connectionResult = shell.connect_service(address, port, user, override_password)
+    if typeof(connectionResult) != "shell" then exit("There was an error while connecting: " + connectionResult)
+    target_user_name = user_input("Enter target username: ")
+    return connectionResult
+end function
+
+decrypt_root_pass_from_string = function(passwdContent)
+    firstAccount = passwdContent.split(char(10))[0]
+    process_user_password(firstAccount)
+    return password
+end function
+
+decrypt_root_pass_from_file = function()
+    passwdContent = shell.host_computer.File(home_path + "/passwd").get_content
+    firstAccount = passwdContent.split(char(10))[0]
+    process_user_password(firstAccount)
+    return password
+end function
+
+process_user_password = function (account_row)
+    crypto = include_lib("/lib/crypto.so")
+    parsed = account_row.split(":")
+    username = parsed[0]
+    passwordHash = parsed[1]
+    password = crypto.decipher(passwordHash)
+    print("User: " + username)
+    print("Password: " + password)
+end function
+
+dump_passwd = function()
+    connectionResult = run_ssh(address, port, user, override_password)
+    // download user password list to local
+    result = connectionResult.scp("/etc/passwd", home_path, shell)
+    if typeof(result) == "string" then exit("There was an error while sending file: " + result)
+    
+    // crack root password found on user password list
+    root_password = decrypt_root_pass_from_file() 
+    return root_password
+end function
+
+
+// run the exploit and payload
+run_exploit = function(metaLib, memory, check) 
+    print("Running exploit with memory: " + memory + " and check: " + check)
+    result = metaLib.overflow(memory,check)
+    print(typeof(result))
+    is_pwn = 0
+
+    // changing password via computer instance
+    if typeof(result) == "computer" and is_pwn == 0 then
+        res = read_passwd_as_user(result)
+        root_pass = decrypt_root_pass_from_string(res)
+        print("Root password: " + root_pass)
+        is_pwn = 1
+    end if
+
+    // changing password via exploit
+    if typeof(result) == "number" and is_pwn == 0 then
+        res = change_pass_via_exploit(metaLib, memory, check)
+        if res == 1 then is_pwn = 1 end if
+        root_pass = dump_passwd()
+        print("Root password: " + root_pass)
+    end if
+
+    if is_pwn == 0 then exit("Exploit failed")
+    
+    // run dump passwd to get root password
+    connectionResult = run_ssh(address, port, "root", root_password)
+
+    // open LogViewer.exe to delete logs
+    connectionResult.launch("/usr/bin/LogViewer.exe", "/var/system.log")
+
+    // open terminal to run commands
+    connectionResult.start_terminal
+
+end function
+
+// test the vuln
+metaLib = exploit_init(address, port)
+run_exploit(metaLib, "0x216A8217","_headeout") // Computer (user)
+run_exploit(metaLib, "0x69F6E723","adeint") // number (change password via exploit)

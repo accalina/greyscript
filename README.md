@@ -3,5 +3,8 @@ My personal list of greyscript to be used to exploit services in greyhack's neur
 
 The documentation can be found here: https://documentation.greyscript.org/
 
+### Notes
+to better read the code please change your language mode to CUDA C++ or download Greybel VS (ayecue.greybel-vs) by _ayecue
+
 ### What is greyscript
 GreyScript is a fork of MiniScript and can be compared to another language such as JavaScript or Lua.
