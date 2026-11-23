@@ -12,7 +12,7 @@ address = params[0]
 port = params[1].to_int
 target_user_name = ""
 override_password = "alina"
-home_path = "~/"
+home_path = "/home/seth/"
 shell = get_shell
 
 // --- init the metaxploit lib and connect to service via net use lib 
@@ -70,7 +70,7 @@ decrypt_root_pass_from_string = function(passwdContent)
 end function
 
 decrypt_root_pass_from_file = function()
-    passwdContent = shell.host_computer.File(home_path + "/passwd").get_content
+    passwdContent = shell.host_computer.File(home_path + "passwd").get_content
     firstAccount = passwdContent.split(char(10))[0]
     password = process_user_password(firstAccount)
     return password
@@ -87,14 +87,18 @@ process_user_password = function (account_row)
     return password
 end function
 
-dump_passwd = function(address, port, user)
-    connectionResult = run_ssh(address, port, user, override_password)
+dump_passwd = function(connectionResult, run_decrypt=true)
     // download user password list to local
+    print("Downloading user password list to local: " + home_path + "passwd")
     result = connectionResult.scp("/etc/passwd", home_path, shell)
     if typeof(result) == "string" then exit("There was an error while sending file: " + result)
     
     // crack root password found on user password list
-    root_password = decrypt_root_pass_from_file() 
+    if run_decrypt then
+        root_password = decrypt_root_pass_from_file()
+    else
+        root_password = ""
+    end if
     return root_password
 end function
 
@@ -110,6 +114,7 @@ run_exploit = function(metaLib, memory, check)
     if typeof(result) == "computer" and is_pwn == 0 then
         res = read_passwd_as_user(result)
         root_pass = decrypt_root_pass_from_string(res)
+        // root_pass = "scoe"
         print("Root password: " + root_pass)
         is_pwn = 1
     end if
@@ -118,7 +123,8 @@ run_exploit = function(metaLib, memory, check)
     if typeof(result) == "number" and is_pwn == 0 then
         res = change_pass_via_exploit(metaLib, memory, check)
         target_user_name = user_input("Enter target username: ")
-        root_pass = dump_passwd(address, port, target_user_name)
+        connectionResult = run_ssh(address, port, user, override_password)
+        root_pass = dump_passwd(connectionResult)
         print("Root password: " + root_pass)
         if res == 1 then is_pwn = 1 end if
     end if
@@ -130,10 +136,13 @@ run_exploit = function(metaLib, memory, check)
     
     // run dump passwd to get root password
     connectionResult = run_ssh(address, port, "root", root_pass)
-
+    
     // open LogViewer.exe to delete logs
     connectionResult.launch("/usr/bin/LogViewer.exe", "/var/system.log")
-
+    
+    // dump passwd to get root password
+    root_pass = dump_passwd(connectionResult)
+    
     // open terminal to run commands
     connectionResult.start_terminal
     exit("Exploit finished successfully")
