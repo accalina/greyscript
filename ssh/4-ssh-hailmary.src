@@ -13,6 +13,7 @@ port = params[1].to_int
 target_user_name = ""
 override_password = "alina"
 home_path = "~/"
+shell = get_shell
 
 // --- init the metaxploit lib and connect to service via net use lib 
 exploit_init = function(address, port=22)
@@ -56,23 +57,22 @@ read_passwd_as_user = function(computer_instance)
     return passwdContent
 end function
 
-run_ssh = function(address, port, user)
-    connectionResult = shell.connect_service(address, port, user, override_password)
+run_ssh = function(address, port, user, password)
+    connectionResult = shell.connect_service(address, port, user, password)
     if typeof(connectionResult) != "shell" then exit("There was an error while connecting: " + connectionResult)
-    target_user_name = user_input("Enter target username: ")
     return connectionResult
 end function
 
 decrypt_root_pass_from_string = function(passwdContent)
     firstAccount = passwdContent.split(char(10))[0]
-    process_user_password(firstAccount)
+    password = process_user_password(firstAccount)
     return password
 end function
 
 decrypt_root_pass_from_file = function()
     passwdContent = shell.host_computer.File(home_path + "/passwd").get_content
     firstAccount = passwdContent.split(char(10))[0]
-    process_user_password(firstAccount)
+    password = process_user_password(firstAccount)
     return password
 end function
 
@@ -84,9 +84,10 @@ process_user_password = function (account_row)
     password = crypto.decipher(passwordHash)
     print("User: " + username)
     print("Password: " + password)
+    return password
 end function
 
-dump_passwd = function()
+dump_passwd = function(address, port, user)
     connectionResult = run_ssh(address, port, user, override_password)
     // download user password list to local
     result = connectionResult.scp("/etc/passwd", home_path, shell)
@@ -116,22 +117,26 @@ run_exploit = function(metaLib, memory, check)
     // changing password via exploit
     if typeof(result) == "number" and is_pwn == 0 then
         res = change_pass_via_exploit(metaLib, memory, check)
-        if res == 1 then is_pwn = 1 end if
-        root_pass = dump_passwd()
+        target_user_name = user_input("Enter target username: ")
+        root_pass = dump_passwd(address, port, target_user_name)
         print("Root password: " + root_pass)
+        if res == 1 then is_pwn = 1 end if
     end if
 
-    if is_pwn == 0 then exit("Exploit failed")
+    if is_pwn == 0 then
+        print("Exploit failed")
+        return 0
+    end if
     
     // run dump passwd to get root password
-    connectionResult = run_ssh(address, port, "root", root_password)
+    connectionResult = run_ssh(address, port, "root", root_pass)
 
     // open LogViewer.exe to delete logs
     connectionResult.launch("/usr/bin/LogViewer.exe", "/var/system.log")
 
     // open terminal to run commands
     connectionResult.start_terminal
-
+    exit("Exploit finished successfully")
 end function
 
 // test the vuln
